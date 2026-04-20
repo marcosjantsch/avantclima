@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import folium
 import streamlit as st
+from branca.element import Element
 
 from folium.plugins import Fullscreen, MiniMap, MeasureControl, MousePosition
 from streamlit_folium import st_folium
@@ -10,29 +11,138 @@ from streamlit_folium import st_folium
 from core.settings import MAX_FEATURES_FULL_MAP
 
 
+DEFAULT_DARK_TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+DEFAULT_DARK_ATTR = (
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
+    'contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+)
+
+
+def _inject_map_theme(m: folium.Map) -> None:
+    css = """
+    <style>
+    .leaflet-container {
+        background: #040605 !important;
+        font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    .leaflet-control-zoom a,
+    .leaflet-control-layers-toggle,
+    .leaflet-bar a {
+        background: #0c1412 !important;
+        color: #e9f8ee !important;
+        border-color: rgba(110, 255, 179, 0.2) !important;
+    }
+
+    .leaflet-bar,
+    .leaflet-control-layers,
+    .leaflet-control-attribution,
+    .leaflet-control-scale,
+    .leaflet-control-minimap {
+        background: rgba(9, 15, 13, 0.92) !important;
+        border: 1px solid rgba(110, 255, 179, 0.18) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35) !important;
+    }
+
+    .leaflet-control-layers-expanded {
+        padding: 10px 12px !important;
+        color: #ecf7f0 !important;
+        min-width: 220px;
+    }
+
+    .leaflet-control-layers-list span,
+    .leaflet-control-layers label {
+        color: #dff4e7 !important;
+    }
+
+    .leaflet-control-layers-separator {
+        border-top-color: rgba(110, 255, 179, 0.12) !important;
+    }
+
+    .leaflet-tooltip {
+        background: rgba(7, 12, 10, 0.96) !important;
+        color: #f2fbf5 !important;
+        border: 1px solid rgba(110, 255, 179, 0.28) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 16px 32px rgba(0, 0, 0, 0.32) !important;
+    }
+
+    .leaflet-tooltip:before {
+        border-top-color: rgba(7, 12, 10, 0.96) !important;
+    }
+
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip {
+        background: #09110f !important;
+        color: #edf8f1 !important;
+    }
+
+    .leaflet-popup-content-wrapper {
+        border: 1px solid rgba(110, 255, 179, 0.2) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 20px 36px rgba(0, 0, 0, 0.38) !important;
+    }
+
+    .leaflet-popup-content {
+        margin: 12px 14px !important;
+        line-height: 1.45 !important;
+    }
+
+    .leaflet-popup-content h4 {
+        margin: 0 0 8px 0 !important;
+        color: #98ff6b !important;
+        font-size: 14px !important;
+    }
+
+    .leaflet-popup-close-button {
+        color: #9fd9b4 !important;
+    }
+
+    .leaflet-control-attribution,
+    .leaflet-control-attribution a,
+    .leaflet-control-scale-line,
+    .leaflet-control-mouseposition {
+        color: #a8c4b2 !important;
+    }
+
+    .leaflet-control-scale-line {
+        background: rgba(9, 15, 13, 0.92) !important;
+        border-color: rgba(110, 255, 179, 0.22) !important;
+    }
+    </style>
+    """
+    m.get_root().header.add_child(Element(css))
+
+
 def _add_basemaps(m: folium.Map) -> None:
     """
-    Adiciona múltiplas camadas de mapa base.
+    Adiciona multiplas camadas de mapa base.
     """
 
-    # Base padrão
     folium.TileLayer(
-        tiles="OpenStreetMap",
-        name="OpenStreetMap",
-        show=True,
-        control=True,
-    ).add_to(m)
-
-    # Satélite ESRI
-    folium.TileLayer(
-        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        attr="Esri",
-        name="Esri World Imagery",
+        tiles=DEFAULT_DARK_TILES,
+        attr=DEFAULT_DARK_ATTR,
+        name="CartoDB Dark Matter",
         show=False,
         control=True,
     ).add_to(m)
 
-    # Topográfico ESRI
+    folium.TileLayer(
+        tiles="OpenStreetMap",
+        name="OpenStreetMap",
+        show=False,
+        control=True,
+    ).add_to(m)
+
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri",
+        name="Esri World Imagery",
+        show=True,
+        control=True,
+    ).add_to(m)
+
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
         attr="Esri",
@@ -41,7 +151,6 @@ def _add_basemaps(m: folium.Map) -> None:
         control=True,
     ).add_to(m)
 
-    # Topográfico aberto
     folium.TileLayer(
         tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
         attr="OpenTopoMap",
@@ -50,7 +159,6 @@ def _add_basemaps(m: folium.Map) -> None:
         control=True,
     ).add_to(m)
 
-    # Mapa outdoor
     folium.TileLayer(
         tiles="https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}{r}.png",
         attr="Stadia Maps",
@@ -59,37 +167,20 @@ def _add_basemaps(m: folium.Map) -> None:
         control=True,
     ).add_to(m)
 
-    # Limites via WMS do IBGE
-    try:
-        folium.WmsTileLayer(
-            url="https://geoservicos.ibge.gov.br/geoserver/ows?",
-            name="IBGE Limites (WMS)",
-            layers="CGEO:BC250_2019_UF",
-            fmt="image/png",
-            transparent=True,
-            attr="IBGE",
-            overlay=True,
-            control=True,
-            show=False,
-        ).add_to(m)
-    except Exception:
-        pass
-
-
 def _get_cor_exibicao(tipo_exib: str) -> str:
     color_map = {
-        "Todos os Dados": "#DFF500",
-        "Dados por Estado": "#F500B4",
-        "Dados por Empresa": "#00C4F5",
-        "Dados Empresa/Fazenda": "#FF3B30",
-        "Dados por Município": "#F5C400",
+        "Todos os Dados": "#98FF6B",
+        "Dados por Estado": "#46E08F",
+        "Dados por Empresa": "#5AF7C0",
+        "Dados Empresa/Fazenda": "#7CFFB2",
+        "Dados por Município": "#2F8F5B",
     }
-    return color_map.get(tipo_exib, "#3388ff")
+    return color_map.get(tipo_exib, "#6EFFB3")
 
 
 def _preparar_gdf_exibicao(gdf_map):
     """
-    Padroniza campos numéricos e textos auxiliares para tooltip.
+    Padroniza campos numericos e textos auxiliares para tooltip.
     """
     gdf_map = gdf_map.copy()
 
@@ -234,6 +325,7 @@ def render_tab_mapa(gdf_full, gdf_filtered, filtro):
         zoom_start=8,
         tiles=None,
         control_scale=True,
+        prefer_canvas=True,
     )
 
     try:
@@ -242,6 +334,7 @@ def render_tab_mapa(gdf_full, gdf_filtered, filtro):
         pass
 
     _add_basemaps(m)
+    _inject_map_theme(m)
 
     Fullscreen(
         position="topright",
@@ -250,7 +343,20 @@ def render_tab_mapa(gdf_full, gdf_filtered, filtro):
         force_separate_button=True,
     ).add_to(m)
 
-    MiniMap(toggle_display=True, position="bottomright").add_to(m)
+    MiniMap(
+        tile_layer=folium.TileLayer(
+            tiles=DEFAULT_DARK_TILES,
+            attr=DEFAULT_DARK_ATTR,
+            name="MiniMap Dark",
+        ),
+        toggle_display=True,
+        position="bottomright",
+        width=170,
+        height=110,
+        collapsed_width=26,
+        collapsed_height=26,
+        zoom_level_offset=-4,
+    ).add_to(m)
 
     MeasureControl(
         position="topleft",
@@ -270,7 +376,6 @@ def render_tab_mapa(gdf_full, gdf_filtered, filtro):
 
     color = _get_cor_exibicao(tipo_exib)
     tooltip_fields, tooltip_aliases = _criar_tooltip(gdf_map)
-
     gdf_render = gdf_map.drop(columns=["__geometry_original__"], errors="ignore").copy()
 
     folium.GeoJson(
@@ -279,14 +384,16 @@ def render_tab_mapa(gdf_full, gdf_filtered, filtro):
         style_function=lambda x: {
             "fillColor": color,
             "color": color,
-            "weight": 1.4,
-            "fillOpacity": 0.40 if mostrar_preenchimento else 0.00,
+            "weight": 1.8,
+            "opacity": 0.9,
+            "fillOpacity": 0.28 if mostrar_preenchimento else 0.00,
         },
         highlight_function=lambda x: {
-            "fillColor": color,
-            "color": "#000000",
-            "weight": 2.6,
-            "fillOpacity": 0.65 if mostrar_preenchimento else 0.10,
+            "fillColor": "#B8FF8A",
+            "color": "#B8FF8A",
+            "weight": 3.2,
+            "opacity": 1,
+            "fillOpacity": 0.42 if mostrar_preenchimento else 0.08,
         },
         tooltip=folium.features.GeoJsonTooltip(
             fields=tooltip_fields,
@@ -294,6 +401,27 @@ def render_tab_mapa(gdf_full, gdf_filtered, filtro):
             sticky=True,
             labels=True,
             localize=True,
+            style="""
+                background-color: #09110f;
+                color: #edf8f1;
+                border: 1px solid rgba(110,255,179,0.22);
+                border-radius: 12px;
+                padding: 8px 10px;
+                box-shadow: 0 16px 32px rgba(0,0,0,0.28);
+            """,
+        ),
+        popup=folium.GeoJsonPopup(
+            fields=[field for field in tooltip_fields if field in gdf_render.columns],
+            aliases=tooltip_aliases,
+            localize=True,
+            labels=True,
+            style="""
+                background-color: #09110f;
+                color: #edf8f1;
+                border: 1px solid rgba(110,255,179,0.22);
+                border-radius: 12px;
+                padding: 8px 10px;
+            """,
         ),
     ).add_to(m)
 
@@ -308,6 +436,6 @@ def render_tab_mapa(gdf_full, gdf_filtered, filtro):
     )
 
     st.caption(
-        "Bases disponíveis: OpenStreetMap, Esri World Imagery, Esri World Topo, "
-        "OpenTopoMap, Stadia Outdoors e IBGE Limites (WMS)."
+        "Bases disponíveis: CartoDB Dark Matter, OpenStreetMap, Esri World Imagery, "
+        "Esri World Topo, OpenTopoMap e Stadia Outdoors."
     )
