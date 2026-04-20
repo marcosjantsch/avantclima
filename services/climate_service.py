@@ -18,6 +18,8 @@ from services.date_service import parse_date_safe, enrich_date_columns
 
 
 logger = logging.getLogger(__name__)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOCAL_DATA_DIR = os.path.join(BASE_DIR, "DadosOnline")
 
 
 # =====================================================================
@@ -27,6 +29,11 @@ def get_years_in_range(start_date: date, end_date: date) -> List[int]:
     if start_date is None or end_date is None or end_date < start_date:
         return []
     return list(range(start_date.year, end_date.year + 1))
+
+
+def _get_local_csv_path(year: int) -> Optional[str]:
+    local_path = os.path.join(LOCAL_DATA_DIR, f"resumo_{int(year)}.csv")
+    return local_path if os.path.isfile(local_path) else None
 
 
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -308,14 +315,25 @@ def load_climate_data(filtro: dict) -> pd.DataFrame:
     for y in years:
         try:
             url = get_url_by_year(urls, y)
+            local_path = _get_local_csv_path(y)
 
-            if not url:
+            source = local_path or url
+
+            if not source:
                 if log_container:
                     log_container.warning(f"⚠️ Sem URL para o ano {y}")
                 st.warning(f"⚠️ Ano {y}: URL não encontrada no config_urls.py")
                 continue
 
-            df_y = load_csv_from_url_robust(url, y)
+            df_y = load_csv_from_url_robust(source, y)
+
+            if (df_y is None or df_y.empty) and local_path and source != local_path:
+                logger.warning(
+                    "Ano %s: falha na origem remota, tentando arquivo local %s.",
+                    y,
+                    local_path,
+                )
+                df_y = load_csv_from_url_robust(local_path, y)
 
             if df_y is None or df_y.empty:
                 if log_container:
@@ -326,7 +344,8 @@ def load_climate_data(filtro: dict) -> pd.DataFrame:
             frames.append(df_y)
 
             if log_container:
-                log_container.success(f"✅ {y}: carregado")
+                origem = "arquivo local" if source == local_path and local_path else "URL"
+                log_container.success(f"✅ {y}: carregado via {origem}")
 
         except Exception as e:
             logger.error("Erro ao processar ano %s: %s", y, e)
