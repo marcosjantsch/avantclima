@@ -155,39 +155,65 @@ def _nome_local_texto(
 def _classificar_regiao(lat, lon):
     if lat < -23:
         return "Sul"
-    elif lat < -15:
+    if lat < -15:
         return "Sudeste"
-    elif lat < -8:
+    if lat < -8:
         return "Centro-Oeste"
-    elif lat < -2:
+    if lat < -2:
         return "Nordeste"
-    else:
-        return "Norte"
+    return "Norte"
 
 
 def _gerar_icones_tendencia(texto: str) -> str:
     texto_lower = str(texto).lower()
     icones = []
 
-    if any(p in texto_lower for p in [
-        "seca", "estiagem", "déficit hídrico", "deficit hídrico",
-        "mais seco", "período seco", "periodo seco",
-        "restrição hídrica", "restricao hídrica",
-        "estresse hídrico", "estresse hidrico"
-    ]):
+    if any(
+        p in texto_lower
+        for p in [
+            "seca",
+            "estiagem",
+            "déficit hídrico",
+            "deficit hídrico",
+            "mais seco",
+            "período seco",
+            "periodo seco",
+            "restrição hídrica",
+            "restricao hídrica",
+            "estresse hídrico",
+            "estresse hidrico",
+        ]
+    ):
         icones.append("🔥")
 
-    if any(p in texto_lower for p in [
-        "chuva", "chuvas", "precipitação", "precipitacao",
-        "úmido", "umido", "úmidas", "umidas",
-        "mais úmido", "mais umido"
-    ]):
+    if any(
+        p in texto_lower
+        for p in [
+            "chuva",
+            "chuvas",
+            "precipitação",
+            "precipitacao",
+            "úmido",
+            "umido",
+            "úmidas",
+            "umidas",
+            "mais úmido",
+            "mais umido",
+        ]
+    ):
         icones.append("🌧")
 
-    if any(p in texto_lower for p in [
-        "temperatura", "temperaturas", "calor",
-        "acima da média", "acima da media", "temperaturas elevadas"
-    ]):
+    if any(
+        p in texto_lower
+        for p in [
+            "temperatura",
+            "temperaturas",
+            "calor",
+            "acima da média",
+            "acima da media",
+            "temperaturas elevadas",
+        ]
+    ):
         icones.append("🌡")
 
     return " ".join(icones) if icones else "🌍"
@@ -214,33 +240,29 @@ def _render_bloco_tendencia(
         f'border-radius:10px;'
         f'margin-top:8px;'
         f'margin-bottom:8px;">'
-
         f'<div style="font-size:1.20rem;'
         f'font-weight:700;'
         f'color:#1b5e20;'
         f'margin-bottom:12px;">'
         f'{icones} {titulo}'
-        f'</div>'
-
+        f"</div>"
         f'<p style="font-size:1.10rem;'
         f'line-height:1.80;'
         f'color:#1f1f1f;'
         f'margin:0 0 14px 0;'
         f'text-align:justify;">'
-        f'{texto_html}'
-        f'</p>'
-
+        f"{texto_html}"
+        f"</p>"
         f'<div style="font-size:0.96rem;'
         f'color:#2f4f2f;'
         f'border-top:1px solid #c8e6c9;'
         f'padding-top:10px;'
         f'line-height:1.65;">'
-        f'<strong>Fonte:</strong> {fonte_html}<br>'
-        f'<strong>Referência:</strong> {referencia_html}<br>'
-        f'<strong>Data da emissão/geração:</strong> {emissao_html}'
-        f'</div>'
-
-        f'</div>'
+        f"<strong>Fonte:</strong> {fonte_html}<br>"
+        f"<strong>Referência:</strong> {referencia_html}<br>"
+        f"<strong>Data da emissão/geração:</strong> {emissao_html}"
+        f"</div>"
+        f"</div>"
     )
 
     st.markdown(html, unsafe_allow_html=True)
@@ -256,8 +278,18 @@ def _periodo_referencia_meses(qtd_meses: int) -> str:
     ano = agora.year
 
     nomes = {
-        1: "jan", 2: "fev", 3: "mar", 4: "abr", 5: "mai", 6: "jun",
-        7: "jul", 8: "ago", 9: "set", 10: "out", 11: "nov", 12: "dez"
+        1: "jan",
+        2: "fev",
+        3: "mar",
+        4: "abr",
+        5: "mai",
+        6: "jun",
+        7: "jul",
+        8: "ago",
+        9: "set",
+        10: "out",
+        11: "nov",
+        12: "dez",
     }
 
     fim_mes = mes + qtd_meses - 1
@@ -278,37 +310,42 @@ def _gerar_tendencia_3_meses(contexto: dict) -> dict:
 
     if regiao == "Sul":
         texto = (
-            f"Para {nome_local}, a tendência climática para os próximos 3 meses indica maior variabilidade "
-            f"na precipitação, com possibilidade de alternância entre períodos mais úmidos e intervalos secos. "
-            f"Em termos operacionais, recomenda-se atenção à irregularidade hídrica, à condição do solo e ao "
-            f"planejamento das atividades sensíveis à chuva."
+            f"Para {nome_local}, os próximos 3 meses sugerem um comportamento mais irregular da chuva, "
+            f"com alternância entre momentos de melhor umidade e intervalos de maior restrição hídrica. "
+            f"Na prática, isso pode provocar oscilação na condição do solo, na trafegabilidade e no ritmo das operações. "
+            f"Como orientação de curto horizonte, vale planejar as atividades com flexibilidade e acompanhar com atenção "
+            f"a distribuição das chuvas, e não apenas o volume acumulado."
         )
     elif regiao == "Sudeste":
         texto = (
-            f"Para {nome_local}, a tendência para os próximos 3 meses aponta para redução gradual das chuvas "
-            f"em parte do período, com possibilidade de temperaturas acima da média regional. "
-            f"Do ponto de vista operacional, isso pode favorecer o avanço de estiagem e exigir monitoramento "
-            f"mais próximo da disponibilidade hídrica."
+            f"Para {nome_local}, a tendência de 3 meses aponta para redução gradual das chuvas em parte do período, "
+            f"com possibilidade de temperaturas mais elevadas. Esse sinal tende a aumentar a perda de umidade do solo, "
+            f"favorecer a evolução de estiagem localizada e ampliar a sensibilidade das operações ao comportamento hídrico. "
+            f"Do ponto de vista prático, convém reforçar o monitoramento da disponibilidade de água e revisar atividades "
+            f"mais dependentes de condições estáveis de solo e clima."
         )
     elif regiao == "Centro-Oeste":
         texto = (
-            f"Para {nome_local}, a tendência climática para os próximos 3 meses indica um padrão mais seco, "
-            f"com menor frequência de chuvas e maior potencial de restrição hídrica. "
-            f"A condição sugere atenção reforçada para déficit hídrico, risco operacional e sensibilidade "
-            f"das atividades de campo ao comportamento da umidade."
+            f"Para {nome_local}, os próximos 3 meses tendem a manter um padrão mais seco, com menor frequência de chuva "
+            f"e maior potencial de restrição hídrica entre eventos de precipitação. Esse cenário pode reduzir a recuperação "
+            f"da umidade no solo e elevar a exposição das atividades de campo ao calor e ao déficit hídrico. "
+            f"A leitura operacional recomenda vigilância reforçada sobre balanço hídrico, condições de campo "
+            f"e janelas mais adequadas para execução."
         )
     elif regiao == "Nordeste":
         texto = (
-            f"Para {nome_local}, a tendência climática para os próximos 3 meses aponta para irregularidade "
-            f"na distribuição das chuvas, com possibilidade de volumes abaixo da média em parte do período. "
-            f"Isso pode manter o risco de estresse hídrico e exigir acompanhamento constante das condições regionais."
+            f"Para {nome_local}, o cenário de 3 meses indica persistência de irregularidade na distribuição das chuvas, "
+            f"com possibilidade de acumulados abaixo do esperado em parte da janela analisada. Mesmo quando houver precipitação, "
+            f"ela pode ocorrer de forma insuficiente para sustentar regularidade de umidade ao longo do período. "
+            f"Isso reforça a necessidade de acompanhamento constante das condições regionais e atenção ao risco de estresse hídrico."
         )
     else:
         texto = (
-            f"Para {nome_local}, a tendência climática para os próximos 3 meses indica manutenção de temperaturas "
-            f"elevadas, com regime de chuvas ainda presente, porém potencialmente irregular em parte da área. "
-            f"Operacionalmente, recomenda-se observar a distribuição temporal das precipitações e a resposta "
-            f"das condições de campo."
+            f"Para {nome_local}, os próximos 3 meses tendem a manter temperaturas elevadas, com presença de chuva, "
+            f"mas com distribuição temporal potencialmente irregular. Esse comportamento pode gerar alternância entre momentos "
+            f"de solo mais encharcado e intervalos de secagem rápida, exigindo leitura cuidadosa das condições locais. "
+            f"Como apoio operacional, o mais importante é acompanhar a sequência dos eventos de chuva e seus reflexos "
+            f"na umidade do solo e no acesso ao campo."
         )
 
     return {
@@ -327,34 +364,42 @@ def _gerar_tendencia_6_meses(contexto: dict) -> dict:
 
     if regiao == "Sul":
         texto = (
-            f"Para {nome_local}, a leitura de tendência para os próximos 6 meses sugere continuidade de elevada "
-            f"variabilidade climática, com alternância entre períodos mais úmidos e mais secos. "
-            f"No horizonte estratégico, recomenda-se utilizar esta sinalização para planejar janelas operacionais "
-            f"com maior flexibilidade."
+            f"Para {nome_local}, a leitura de 6 meses sugere continuidade de alta variabilidade climática, com alternância "
+            f"entre fases mais úmidas e períodos de maior restrição hídrica. Em um horizonte mais estratégico, isso indica "
+            f"que o planejamento deve trabalhar com cenários e não com uma condição única predominante. "
+            f"A recomendação é manter flexibilidade nas janelas operacionais e revisar prioridades conforme a evolução real da chuva e da umidade."
         )
     elif regiao == "Sudeste":
         texto = (
-            f"Para {nome_local}, a tendência de 6 meses indica consolidação de uma fase mais seca em parte do ciclo, "
-            f"com retorno gradual das chuvas posteriormente. A manutenção de temperaturas elevadas pode intensificar "
-            f"o déficit hídrico em determinados momentos, exigindo avaliação estratégica das operações."
+            f"Para {nome_local}, o horizonte de 6 meses sugere consolidação de uma fase mais seca em parte do ciclo, "
+            f"seguida por transição gradual para condições menos restritivas. Se as temperaturas permanecerem elevadas, "
+            f"o déficit hídrico pode se intensificar em determinados momentos e pressionar áreas mais sensíveis. "
+            f"Em termos estratégicos, essa leitura ajuda a antecipar prioridades de monitoramento, organização de recursos "
+            f"e definição das janelas mais seguras para operações dependentes de condição climática."
         )
     elif regiao == "Centro-Oeste":
         texto = (
-            f"Para {nome_local}, a tendência climática para 6 meses indica forte sazonalidade, com período seco "
-            f"bem definido seguido por retomada das chuvas em momento posterior. "
-            f"A leitura estratégica sugere atenção elevada ao risco de estresse hídrico e ao planejamento das janelas de campo."
+            f"Para {nome_local}, a tendência de 6 meses indica sazonalidade bem marcada, com uma fase seca mais definida "
+            f"antes da retomada gradual das chuvas. Esse padrão favorece acúmulo de estresse hídrico ao longo do ciclo "
+            f"e exige organização antecipada das atividades mais sensíveis ao ambiente seco. "
+            f"A leitura estratégica recomenda atenção elevada ao balanço hídrico, ao risco operacional e ao planejamento "
+            f"das janelas de campo com maior previsibilidade."
         )
     elif regiao == "Nordeste":
         texto = (
-            f"Para {nome_local}, a tendência climática de 6 meses aponta para manutenção de irregularidade na chuva, "
-            f"com possibilidade de períodos secos mais prolongados em parte da área. "
-            f"Essa condição reforça a necessidade de planejamento prudente em atividades dependentes da umidade."
+            f"Para {nome_local}, o horizonte de 6 meses aponta para continuidade da irregularidade das chuvas, com chance "
+            f"de intervalos secos mais prolongados em parte da área. Nesse tipo de cenário, o principal ponto de atenção "
+            f"não é apenas o total de precipitação, mas a capacidade de manter regularidade de umidade ao longo do tempo. "
+            f"Essa condição reforça a necessidade de planejamento prudente, monitoramento constante e combinação desta leitura "
+            f"com sinais de curto prazo e observação local."
         )
     else:
         texto = (
-            f"Para {nome_local}, a tendência de 6 meses indica manutenção de temperaturas elevadas e comportamento "
-            f"variável da precipitação, com possibilidade de redução em parte do horizonte analisado. "
-            f"Como apoio estratégico, recomenda-se combinar esta leitura com a previsão de curto prazo e com o histórico climático local."
+            f"Para {nome_local}, a leitura de 6 meses sugere persistência de temperaturas elevadas e comportamento variável "
+            f"da precipitação, com possibilidade de redução em parte do horizonte analisado. Em termos estratégicos, "
+            f"isso pede acompanhamento contínuo da sequência de chuva, da resposta da umidade do solo e das condições de acesso ao campo. "
+            f"A recomendação é usar essa tendência como orientação de planejamento e refiná-la com previsão de curto prazo "
+            f"e histórico climático da área."
         )
 
     return {

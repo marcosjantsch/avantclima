@@ -1,8 +1,14 @@
+import altair as alt
 import requests
 import pandas as pd
 import streamlit as st
 
 
+FORECAST_DAYS_DEFAULT = 16
+WMO_HELP = (
+    "Código padronizado da Organização Meteorológica Mundial (WMO) usado para "
+    "representar a condição do tempo prevista, como céu limpo, chuva, nevoeiro ou trovoada."
+)
 def render_tab_previsao(
     gdf_filtered,
     selected_empresa=None,
@@ -62,12 +68,7 @@ Esta seção permanece oculta por padrão e pode ser expandida quando o usuário
 
     col1, col2 = st.columns([1, 1])
     with col1:
-        forecast_days = st.selectbox(
-            "Horizonte da previsão",
-            options=[7, 10, 14, 16],
-            index=0,
-            key="previsao_forecast_days",
-        )
+        st.caption(f"Horizonte da previsão: {FORECAST_DAYS_DEFAULT} dias")
     with col2:
         exibir_tabela = st.checkbox(
             "Exibir tabela completa",
@@ -75,7 +76,11 @@ Esta seção permanece oculta por padrão e pode ser expandida quando o usuário
             key="previsao_exibir_tabela",
         )
 
-    data = _fetch_open_meteo_forecast(lat=lat, lon=lon, forecast_days=forecast_days)
+    data = _fetch_open_meteo_forecast(
+        lat=lat,
+        lon=lon,
+        forecast_days=FORECAST_DAYS_DEFAULT,
+    )
 
     if not data:
         st.error("❌ Não foi possível consultar a previsão do tempo.")
@@ -89,6 +94,7 @@ Esta seção permanece oculta por padrão e pode ser expandida quando o usuário
     st.markdown(f"### {titulo_local}")
 
     hoje = df_previsao.iloc[0].copy()
+    amanha = df_previsao.iloc[1].copy() if len(df_previsao) > 1 else None
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Hoje - Temp. Máx.", _fmt_val(hoje.get("temp_max"), "°C"))
@@ -100,9 +106,27 @@ Esta seção permanece oculta por padrão e pode ser expandida quando o usuário
     c5.metric("Vento Máx.", _fmt_val(hoje.get("wind_max"), "km/h"))
     c6.metric(
         "Código WMO",
-        str(int(hoje["weather_code"])) if pd.notna(hoje.get("weather_code")) else "N/A"
+        str(int(hoje["weather_code"])) if pd.notna(hoje.get("weather_code")) else "N/A",
+        help=WMO_HELP,
     )
     c7.metric("Condição", str(hoje.get("weather_desc", "N/A")))
+
+    if amanha is not None:
+        st.markdown("#### Amanhã")
+        a1, a2, a3, a4 = st.columns(4)
+        a1.metric("Amanhã - Temp. Máx.", _fmt_val(amanha.get("temp_max"), "°C"))
+        a2.metric("Amanhã - Temp. Mín.", _fmt_val(amanha.get("temp_min"), "°C"))
+        a3.metric("Amanhã - Chuva", _fmt_val(amanha.get("precip_mm"), "mm"))
+        a4.metric("Amanhã - Prob. chuva", _fmt_val(amanha.get("precip_prob"), "%"))
+
+        a5, a6, a7 = st.columns(3)
+        a5.metric("Amanhã - Vento Máx.", _fmt_val(amanha.get("wind_max"), "km/h"))
+        a6.metric(
+            "Amanhã - Código WMO",
+            str(int(amanha["weather_code"])) if pd.notna(amanha.get("weather_code")) else "N/A",
+            help=WMO_HELP,
+        )
+        a7.metric("Amanhã - Condição", str(amanha.get("weather_desc", "N/A")))
 
     st.markdown("---")
     st.markdown("#### Gráficos")
@@ -111,15 +135,78 @@ Esta seção permanece oculta por padrão e pode ser expandida quando o usuário
 
     with graf_col1:
         base_temp = df_previsao.copy()
-        base_temp["data_plot"] = pd.to_datetime(base_temp["data"], format="%d/%m/%Y", errors="coerce")
-        base_temp = base_temp.set_index("data_plot")[["temp_max", "temp_min"]]
-        st.line_chart(base_temp, height=300, use_container_width=True)
+        base_temp["data_plot"] = pd.to_datetime(
+            base_temp["data"], format="%d/%m/%Y", errors="coerce"
+        )
+        base_temp = base_temp.sort_values("data_plot", ascending=True)
+        base_temp = base_temp.rename(
+            columns={"temp_max": "Temperatura máxima", "temp_min": "Temperatura mínima"}
+        )
+        base_temp = base_temp.melt(
+            id_vars=["data_plot"],
+            value_vars=["Temperatura máxima", "Temperatura mínima"],
+            var_name="Série",
+            value_name="Temperatura",
+        )
+        chart_temp = (
+            alt.Chart(base_temp)
+            .mark_line(point=True, strokeWidth=2.5)
+            .encode(
+                x=alt.X(
+                    "data_plot:T",
+                    sort="ascending",
+                    axis=alt.Axis(title=None, format="%d/%m", labelAngle=0),
+                ),
+                y=alt.Y("Temperatura:Q", title=None),
+                color=alt.Color(
+                    "Série:N",
+                    title=None,
+                    scale=alt.Scale(
+                        domain=["Temperatura máxima", "Temperatura mínima"],
+                        range=["#98FF6B", "#5AF7C0"],
+                    ),
+                ),
+                tooltip=[
+                    alt.Tooltip("data_plot:T", title="Data", format="%d/%m/%Y"),
+                    alt.Tooltip("Série:N", title="Série"),
+                    alt.Tooltip("Temperatura:Q", title="Valor", format=".1f"),
+                ],
+            )
+            .properties(height=300)
+        )
+        st.altair_chart(chart_temp, use_container_width=True)
 
     with graf_col2:
         base_precip = df_previsao.copy()
-        base_precip["data_plot"] = pd.to_datetime(base_precip["data"], format="%d/%m/%Y", errors="coerce")
-        base_precip = base_precip.set_index("data_plot")[["precip_mm"]]
-        st.bar_chart(base_precip, height=300, use_container_width=True)
+        base_precip["data_plot"] = pd.to_datetime(
+            base_precip["data"], format="%d/%m/%Y", errors="coerce"
+        )
+        base_precip = base_precip.sort_values("data_plot", ascending=True)
+        base_precip = base_precip.rename(
+            columns={"precip_mm": "Precipitação acumulada"}
+        )
+        chart_precip = (
+            alt.Chart(base_precip)
+            .mark_bar(color="#7CFFB2")
+            .encode(
+                x=alt.X(
+                    "data_plot:T",
+                    sort="ascending",
+                    axis=alt.Axis(title=None, format="%d/%m", labelAngle=0),
+                ),
+                y=alt.Y("Precipitação acumulada:Q", title=None),
+                tooltip=[
+                    alt.Tooltip("data_plot:T", title="Data", format="%d/%m/%Y"),
+                    alt.Tooltip(
+                        "Precipitação acumulada:Q",
+                        title="Precipitação acumulada",
+                        format=".1f",
+                    ),
+                ],
+            )
+            .properties(height=300)
+        )
+        st.altair_chart(chart_precip, use_container_width=True)
 
     st.markdown("---")
     st.markdown("#### Interpretação automática")
@@ -188,7 +275,11 @@ def _descricao_local(
 
 
 @st.cache_data(show_spinner=False, ttl=1800)
-def _fetch_open_meteo_forecast(lat: float, lon: float, forecast_days: int = 7):
+def _fetch_open_meteo_forecast(
+    lat: float,
+    lon: float,
+    forecast_days: int = FORECAST_DAYS_DEFAULT,
+):
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": lat,
@@ -287,11 +378,19 @@ def _gerar_interpretacao(df: pd.DataFrame) -> str:
         return "Sem dados para interpretação."
 
     precip_total = pd.to_numeric(df["precip_mm"], errors="coerce").sum(skipna=True)
-    dias_sem_chuva = int((pd.to_numeric(df["precip_mm"], errors="coerce").fillna(0) < 1.0).sum())
+    dias_sem_chuva = int(
+        (pd.to_numeric(df["precip_mm"], errors="coerce").fillna(0) < 1.0).sum()
+    )
     temp_max_media = pd.to_numeric(df["temp_max"], errors="coerce").mean(skipna=True)
     vento_max = pd.to_numeric(df["wind_max"], errors="coerce").max(skipna=True)
+    data_inicio = df["data"].iloc[0] if "data" in df.columns and not df.empty else None
+    data_fim = df["data"].iloc[-1] if "data" in df.columns and not df.empty else None
 
     partes = []
+    if data_inicio and data_fim:
+        partes.append(
+            f"Período analisado: de {data_inicio} até {data_fim}."
+        )
     partes.append(f"Precipitação acumulada prevista no período: {precip_total:.1f} mm.")
 
     if dias_sem_chuva >= max(3, int(len(df) * 0.6)):
