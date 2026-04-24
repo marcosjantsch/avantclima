@@ -4,7 +4,7 @@ import streamlit as st
 from services.export_service import df_to_excel_bytes
 from services.log_service import log_info_once, log_success_once, log_warning_once
 
-def render_tab_shape(gdf_filtered):
+def render_tab_shape(gdf_filtered, filters_version: int = 0):
     st.markdown('<div class="section-title">Dados Shape</div>', unsafe_allow_html=True)
 
     if not st.session_state.get("aplicar", False):
@@ -24,7 +24,7 @@ def render_tab_shape(gdf_filtered):
             "empty_filtered_shape",
             "Aba Dados Shape sem registros filtrados",
             {},
-            signature={"empty": True},
+            signature={"empty": True, "filters_version": int(filters_version or 0)},
         )
         st.info("Nenhum dado filtrado para exibir.")
         return
@@ -57,8 +57,16 @@ def render_tab_shape(gdf_filtered):
         "tab_shape",
         "shape_ready",
         "Tabela de shape preparada para exibicao",
-        {"records": int(len(df_shape)), "columns": int(len(df_shape.columns))},
-        signature={"records": int(len(df_shape)), "columns": int(len(df_shape.columns))},
+        {
+            "records": int(len(df_shape)),
+            "columns": int(len(df_shape.columns)),
+            "filters_version": int(filters_version or 0),
+        },
+        signature={
+            "records": int(len(df_shape)),
+            "columns": int(len(df_shape.columns)),
+            "filters_version": int(filters_version or 0),
+        },
     )
 
     excel_bytes = df_to_excel_bytes(df_shape, sheet_name="Dados_Shape")

@@ -33,7 +33,7 @@ from components.header import render_header
 from components.login_page import render_login_page
 from components.sidebar import render_sidebar
 
-from tabs.tab_mapa import render_tab_mapa
+from tabs.tab_mapa import build_map_viewport, build_viewport_log_details, render_tab_mapa
 from tabs.tab_shape import render_tab_shape
 from tabs.tab_clima import render_tab_clima
 from tabs.tab_analise import render_tab_analise
@@ -51,7 +51,6 @@ from services.log_service import (
     log_warning,
     log_warning_once,
 )
-from tabs.tab_imagens_tempo_real import render_tab_imagens_tempo_real
 
 # =====================================================================
 # LOGGING
@@ -340,7 +339,6 @@ def render_loading_shell() -> None:
             "📉 Análise Avançada",
             "Previsão do Tempo (Teste)",
             "Tendência Climática (Teste)",
-            "Imagens Atuais (Teste)",
         ]
     )
 
@@ -410,6 +408,7 @@ def get_map_refresh_token(filtro: dict) -> str:
         str(filtro.get("end_date", "")),
         str(int(bool(filtro.get("aplicar", False)))),
         str(filtro.get("filters_version", "")),
+        str(filtro.get("manual_zoom_refresh_version", "")),
     ]
     signature = "|".join(signature_parts)
 
@@ -439,6 +438,8 @@ def init_applied_filters_state() -> None:
         },
     )
     st.session_state.setdefault("applied_filters_version", 0)
+    st.session_state.setdefault("manual_zoom_refresh_version", 0)
+    st.session_state.setdefault("manual_zoom_last_source", "")
 
 
 def render_tab_theme_marker(theme_name: str) -> None:
@@ -945,6 +946,7 @@ if apply:
 
 applied_filters = st.session_state["applied_filters"]
 applied_filters_version = int(st.session_state.get("applied_filters_version", 0))
+manual_zoom_refresh_version = int(st.session_state.get("manual_zoom_refresh_version", 0))
 filters_applied = bool(applied_filters.get("aplicar", False))
 st.session_state.aplicar = filters_applied
 
@@ -970,6 +972,7 @@ map_refresh_token = get_map_refresh_token(
         "end_date": end_date_applied,
         "aplicar": filters_applied,
         "filters_version": applied_filters_version,
+        "manual_zoom_refresh_version": manual_zoom_refresh_version,
     }
 )
 
@@ -1001,6 +1004,72 @@ else:
         "Aplicacao aguardando acao de filtros na sidebar",
         {"records": int(len(gdf_full))},
         signature={"waiting": True, "records": int(len(gdf_full))},
+    )
+
+shared_map_viewport = None
+viewport_gdf = gdf_filtered if filters_applied else gdf_full
+viewport_tipo_dado = filtro_shape["tipo_dado"] if filters_applied else "Todos os Dados"
+
+if viewport_gdf is not None and not viewport_gdf.empty:
+    try:
+        shared_map_viewport = build_map_viewport(viewport_gdf, viewport_tipo_dado)
+        log_success_once(
+            "filters",
+            "shared_viewport_ready",
+            "Viewport compartilhado calculado para sincronizar os mapas",
+            {
+                "tipo_dado": viewport_tipo_dado,
+                "records": int(len(viewport_gdf)),
+                "manual_zoom_refresh_version": manual_zoom_refresh_version,
+                "manual_zoom_last_source": str(st.session_state.get("manual_zoom_last_source", "")),
+                **build_viewport_log_details(
+                    shared_map_viewport,
+                    filters_version=applied_filters_version,
+                ),
+            },
+            signature={
+                "tipo_dado": viewport_tipo_dado,
+                "records": int(len(viewport_gdf)),
+                "manual_zoom_refresh_version": manual_zoom_refresh_version,
+                "manual_zoom_last_source": str(st.session_state.get("manual_zoom_last_source", "")),
+                **build_viewport_log_details(
+                    shared_map_viewport,
+                    filters_version=applied_filters_version,
+                ),
+            },
+        )
+    except Exception as exc:
+        log_warning_once(
+            "filters",
+            "shared_viewport_unavailable",
+            "Nao foi possivel preparar o viewport compartilhado dos mapas",
+            {
+                "tipo_dado": viewport_tipo_dado,
+                "records": int(len(viewport_gdf)),
+                "error": str(exc),
+                "filters_version": applied_filters_version,
+            },
+            signature={
+                "tipo_dado": viewport_tipo_dado,
+                "records": int(len(viewport_gdf)),
+                "error": str(exc),
+                "filters_version": applied_filters_version,
+            },
+        )
+else:
+    log_warning_once(
+        "filters",
+        "shared_viewport_empty",
+        "Viewport compartilhado nao foi gerado por ausencia de geometrias",
+        {
+            "tipo_dado": viewport_tipo_dado,
+            "filters_version": applied_filters_version,
+        },
+        signature={
+            "tipo_dado": viewport_tipo_dado,
+            "filters_version": applied_filters_version,
+            "empty": True,
+        },
     )
 
 
@@ -1098,10 +1167,9 @@ TAB_LABELS = [
     "Analise Avancada",
     "Previsao do Tempo (Teste)",
     "Tendencia Climatica (Teste)",
-    "Imagens Atuais (Teste)",
 ]
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
     TAB_LABELS,
 )
 
@@ -1112,15 +1180,17 @@ with tab1:
         gdf_filtered,
         filtro_shape,
         refresh_token=map_refresh_token,
+        filters_version=applied_filters_version,
+        shared_viewport=shared_map_viewport,
     )
 
 with tab2:
     render_tab_theme_marker("shape")
-    render_tab_shape(gdf_filtered)
+    render_tab_shape(gdf_filtered, filters_version=applied_filters_version)
 
 with tab3:
     render_tab_theme_marker("clima")
-    render_tab_clima(df_csv)
+    render_tab_clima(df_csv, filters_version=applied_filters_version)
 
 with tab4:
     render_tab_theme_marker("analise")
@@ -1133,6 +1203,7 @@ with tab4:
         selected_fazenda=filtro_shape["selected_fazenda"],
         start_date=start_date_applied,
         end_date=end_date_applied,
+        filters_version=applied_filters_version,
     )
 
 with tab5:
@@ -1144,6 +1215,7 @@ with tab5:
         selected_municipio=filtro_shape["selected_municipio"],
         selected_uf=filtro_shape["selected_uf"],
         logo_path=LOGO_PATH,
+        filters_version=applied_filters_version,
     )
 
 with tab6:
@@ -1155,16 +1227,6 @@ with tab6:
         selected_municipio=filtro_shape["selected_municipio"],
         selected_uf=filtro_shape["selected_uf"],
         logo_path=LOGO_PATH,
-    )
-
-with tab7:
-    render_tab_theme_marker("imagens")
-    render_tab_imagens_tempo_real(
-        gdf_filtrado=gdf_filtered,
-        selected_empresa=filtro_shape["selected_empresa"],
-        selected_fazenda=filtro_shape["selected_fazenda"],
-        selected_uf=filtro_shape["selected_uf"],
-        selected_municipio=filtro_shape["selected_municipio"],
-        refresh_token=map_refresh_token,
+        filters_version=applied_filters_version,
     )
 

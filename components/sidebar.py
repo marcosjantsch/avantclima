@@ -196,6 +196,7 @@ def render_sidebar(gdf_full):
 
     action_container = st.sidebar.container(border=True)
     with action_container:
+        apply = st.button("Aplicar Filtros")
         st.markdown(
             (
                 '<div class="sidebar-summary-grid">'
@@ -205,7 +206,6 @@ def render_sidebar(gdf_full):
             ),
             unsafe_allow_html=True,
         )
-        apply = st.button("Aplicar Filtros")
         log_container = st.container() if apply else st.empty()
 
     with st.sidebar:

@@ -11,7 +11,14 @@ import folium
 from shapely.geometry import mapping
 from streamlit_folium import st_folium
 from services.log_service import log_error_once, log_success_once, log_warning_once
-from tabs.tab_mapa import _add_basemaps, _inject_map_theme
+from tabs.tab_mapa import (
+    _add_basemaps,
+    _inject_map_theme,
+    apply_viewport_to_map,
+    build_map_viewport,
+    build_viewport_log_details,
+    render_manual_zoom_button,
+)
 
 
 MAP_HEIGHT = 680
@@ -25,9 +32,18 @@ def render_tab_imagens_tempo_real(
     selected_fazenda=None,
     selected_uf=None,
     selected_municipio=None,
+    tipo_dado: str = "Todos os Dados",
     refresh_token: str = "",
+    filters_version: int = 0,
+    shared_viewport: Optional[Dict[str, object]] = None,
 ):
-    st.markdown('<div class="section-title">Imagens em tempo real</div>', unsafe_allow_html=True)
+    title_col, action_col = st.columns([0.72, 0.28], vertical_alignment="center")
+    with title_col:
+        st.markdown('<div class="section-title">Imagens em tempo real</div>', unsafe_allow_html=True)
+    with action_col:
+        render_manual_zoom_button("imagens_atuais", filters_version=filters_version)
+
+    manual_zoom_refresh_version = int(st.session_state.get("manual_zoom_refresh_version", 0))
 
     if gdf_filtrado is None:
         log_warning_once(
@@ -35,7 +51,7 @@ def render_tab_imagens_tempo_real(
             "missing_input_gdf",
             "Aba Imagens em tempo real sem dado espacial de entrada",
             {},
-            signature={"missing_input": True},
+            signature={"missing_input": True, "filters_version": int(filters_version or 0)},
         )
         st.warning("⚠️ Nenhum dado espacial foi recebido para a aba.")
         return
@@ -47,7 +63,7 @@ def render_tab_imagens_tempo_real(
             "empty_prepared_gdf",
             "Aba Imagens em tempo real sem geometria valida apos preparo",
             {},
-            signature={"empty_prepared": True},
+            signature={"empty_prepared": True, "filters_version": int(filters_version or 0)},
         )
         st.warning("⚠️ O shapefile filtrado está vazio ou inválido.")
         return
@@ -68,6 +84,7 @@ def render_tab_imagens_tempo_real(
         selected_fazenda=selected_fazenda,
         selected_uf=selected_uf,
         selected_municipio=selected_municipio,
+        tipo_dado=tipo_dado,
         refresh_token=refresh_token,
     )
 
@@ -102,14 +119,18 @@ def render_tab_imagens_tempo_real(
             "missing_layer_definition",
             "Nao foi possivel localizar a definicao da camada selecionada",
             {"camada": camada_escolhida},
-            signature={"camada": camada_escolhida, "missing_definition": True},
+            signature={
+                "camada": camada_escolhida,
+                "missing_definition": True,
+                "filters_version": int(filters_version or 0),
+            },
         )
         st.warning("⚠️ Não foi possível localizar a definição da camada selecionada.")
         return
 
     st.caption(
         "A busca é feita somente para a camada selecionada. "
-        "Ao trocar a camada, o mapa é recriado imediatamente com zoom inicial em 9."
+        "Ao trocar a camada ou aplicar novos filtros, o mapa é recriado com o zoom do tipo de dado selecionado."
     )
 
     resultado = _obter_resultado_camada(camada_def)
@@ -130,6 +151,7 @@ def render_tab_imagens_tempo_real(
                 "data": resultado.get("data", ""),
                 "ext": resultado.get("ext", ""),
                 "status": "ok",
+                "filters_version": int(filters_version or 0),
             },
         )
         st.success(
@@ -142,7 +164,11 @@ def render_tab_imagens_tempo_real(
             "layer_not_found",
             "Nenhuma imagem disponivel encontrada para a camada selecionada",
             {"camada": camada_def["nome_base"]},
-            signature={"camada": camada_def["nome_base"], "status": "sem_imagem"},
+            signature={
+                "camada": camada_def["nome_base"],
+                "status": "sem_imagem",
+                "filters_version": int(filters_version or 0),
+            },
         )
         st.warning(
             f'⚠️ Não foi encontrada imagem disponível para "{camada_def["nome_base"]}" '
@@ -154,11 +180,42 @@ def render_tab_imagens_tempo_real(
             "layer_error",
             "Falha ao consultar camada de imagem em tempo real",
             {"camada": camada_def["nome_base"], "status": status},
-            signature={"camada": camada_def["nome_base"], "status": status},
+            signature={
+                "camada": camada_def["nome_base"],
+                "status": status,
+                "filters_version": int(filters_version or 0),
+            },
         )
         st.error(f'❌ Falha ao consultar "{camada_def["nome_base"]}".')
 
-    m = _criar_mapa_base(gdf)
+    viewport = shared_viewport
+    if viewport is None:
+        try:
+            viewport = build_map_viewport(gdf, tipo_dado)
+        except Exception:
+            viewport = None
+
+    if viewport is None:
+        log_error_once(
+            "tab_imagens",
+            "invalid_bounds",
+            "Falha ao calcular viewport da aba Imagens em tempo real",
+            {
+                "records": int(len(gdf)),
+                "tipo_dado": tipo_dado,
+                "filters_version": int(filters_version or 0),
+            },
+            signature={
+                "records": int(len(gdf)),
+                "tipo_dado": tipo_dado,
+                "status": "invalid_bounds",
+                "filters_version": int(filters_version or 0),
+            },
+        )
+        st.error("Não foi possível calcular os limites espaciais para o mapa de imagens.")
+        return
+
+    m = _criar_mapa_base(gdf, tipo_dado=tipo_dado, viewport=viewport)
 
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -204,12 +261,19 @@ def render_tab_imagens_tempo_real(
             "camada": camada_def["nome_base"],
             "status": status,
             "records": int(len(gdf)),
+            "tipo_dado": tipo_dado,
+            "manual_zoom_refresh_version": manual_zoom_refresh_version,
+            **build_viewport_log_details(viewport, filters_version=filters_version),
         },
         signature={
             "camada": camada_def["nome_base"],
             "status": status,
             "records": int(len(gdf)),
             "data": resultado.get("data", ""),
+            "tipo_dado": tipo_dado,
+            "manual_zoom_refresh_version": manual_zoom_refresh_version,
+            **build_viewport_log_details(viewport, filters_version=filters_version),
+            "refresh_token": str(refresh_token or ""),
         },
     )
 def _init_state():
@@ -366,6 +430,7 @@ def _build_filter_key(
     selected_fazenda=None,
     selected_uf=None,
     selected_municipio=None,
+    tipo_dado: str = "",
     refresh_token: str = "",
 ) -> str:
     try:
@@ -378,6 +443,7 @@ def _build_filter_key(
         str(selected_fazenda or ""),
         str(selected_uf or ""),
         str(selected_municipio or ""),
+        str(tipo_dado or ""),
         str(len(gdf)),
         str(bounds),
         str(refresh_token or ""),
@@ -385,14 +451,16 @@ def _build_filter_key(
     return "|".join(partes)
 
 
-def _criar_mapa_base(gdf: gpd.GeoDataFrame) -> folium.Map:
-    geom_total = gdf.union_all() if hasattr(gdf, "union_all") else gdf.unary_union
-    centroid = geom_total.centroid
-    minx, miny, maxx, maxy = gdf.total_bounds
+def _criar_mapa_base(
+    gdf: gpd.GeoDataFrame,
+    tipo_dado: str = "Todos os Dados",
+    viewport: Optional[Dict[str, object]] = None,
+) -> folium.Map:
+    map_viewport = viewport or build_map_viewport(gdf, tipo_dado)
 
     m = folium.Map(
-        location=[centroid.y, centroid.x],
-        zoom_start=FIXED_ZOOM,
+        location=[map_viewport["center_lat"], map_viewport["center_lon"]],
+        zoom_start=int(map_viewport["zoom_default"]),
         control_scale=True,
         tiles=None,
         prefer_canvas=True,
@@ -400,7 +468,7 @@ def _criar_mapa_base(gdf: gpd.GeoDataFrame) -> folium.Map:
     )
 
     try:
-        m.fit_bounds([[miny, minx], [maxy, maxx]])
+        apply_viewport_to_map(m, map_viewport)
     except Exception:
         pass
 

@@ -27,7 +27,7 @@ def _to_float_br(series: pd.Series) -> pd.Series:
     return pd.to_numeric(s, errors="coerce")
 
 
-def render_tab_clima(df_csv):
+def render_tab_clima(df_csv, filters_version: int = 0):
     st.markdown('<div class="section-title">Dados de Clima</div>', unsafe_allow_html=True)
 
     if not st.session_state.get("aplicar", False):
@@ -47,7 +47,7 @@ def render_tab_clima(df_csv):
             "empty_dataset",
             "Aba Dados de Clima sem registros filtrados",
             {},
-            signature={"empty": True},
+            signature={"empty": True, "filters_version": int(filters_version or 0)},
         )
         st.warning("Nenhum dado de clima filtrado.")
         return
@@ -71,7 +71,10 @@ def render_tab_clima(df_csv):
             "missing_data_column",
             "Coluna DATA ausente na aba Dados de Clima",
             {"columns": [str(c) for c in dfc.columns]},
-            signature={"columns": [str(c) for c in dfc.columns]},
+            signature={
+                "columns": [str(c) for c in dfc.columns],
+                "filters_version": int(filters_version or 0),
+            },
         )
         st.error("❌ Coluna DATA não encontrada.")
         st.write("Colunas disponíveis:", list(dfc.columns))
@@ -86,7 +89,10 @@ def render_tab_clima(df_csv):
             "empty_after_data_enrichment",
             "Nenhum registro valido restou apos tratamento de DATA",
             {},
-            signature={"empty_after_data": True},
+            signature={
+                "empty_after_data": True,
+                "filters_version": int(filters_version or 0),
+            },
         )
         st.warning("Nenhum registro válido após o tratamento da coluna DATA.")
         return
@@ -158,8 +164,16 @@ def render_tab_clima(df_csv):
         "tab_clima",
         "climate_table_ready",
         "Tabela climatica preparada para exibicao",
-        {"records": int(len(dfc)), "columns": int(len(dfc.columns))},
-        signature={"records": int(len(dfc)), "columns": int(len(dfc.columns))},
+        {
+            "records": int(len(dfc)),
+            "columns": int(len(dfc.columns)),
+            "filters_version": int(filters_version or 0),
+        },
+        signature={
+            "records": int(len(dfc)),
+            "columns": int(len(dfc.columns)),
+            "filters_version": int(filters_version or 0),
+        },
     )
 
     # Exportação sem DATA

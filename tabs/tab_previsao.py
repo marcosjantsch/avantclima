@@ -19,6 +19,7 @@ def render_tab_previsao(
     selected_municipio=None,
     selected_uf=None,
     logo_path=None,
+    filters_version: int = 0,
 ):
     palette = get_theme_palette()
     chart_bg = palette["chart_surface"]
@@ -35,7 +36,7 @@ def render_tab_previsao(
             "empty_geometry",
             "Aba Previsao do Tempo sem geometria filtrada",
             {},
-            signature={"empty": True},
+            signature={"empty": True, "filters_version": int(filters_version or 0)},
         )
         st.warning("⚠️ Não há geometria filtrada para calcular o centróide.")
         return
@@ -47,7 +48,11 @@ def render_tab_previsao(
             "invalid_geometry",
             "Nao foi possivel obter a geometria da area selecionada para previsao",
             {"records": int(len(gdf_filtered))},
-            signature={"records": int(len(gdf_filtered)), "invalid_geometry": True},
+            signature={
+                "records": int(len(gdf_filtered)),
+                "invalid_geometry": True,
+                "filters_version": int(filters_version or 0),
+            },
         )
         st.error("❌ Não foi possível obter a geometria da área selecionada.")
         return
@@ -121,6 +126,7 @@ Esta seção permanece oculta por padrão e pode ser expandida quando o usuário
                 "lon": round(lon, 6),
                 "forecast_days": FORECAST_DAYS_DEFAULT,
                 "status": "request_failed",
+                "filters_version": int(filters_version or 0),
             },
         )
         st.error("❌ Não foi possível consultar a previsão do tempo.")
@@ -142,6 +148,7 @@ Esta seção permanece oculta por padrão e pode ser expandida quando o usuário
                 "lon": round(lon, 6),
                 "forecast_days": FORECAST_DAYS_DEFAULT,
                 "status": "empty",
+                "filters_version": int(filters_version or 0),
             },
         )
         st.warning("⚠️ A consulta foi realizada, mas não retornou dados utilizáveis.")
@@ -160,6 +167,7 @@ Esta seção permanece oculta por padrão e pode ser expandida quando o usuário
             "records": int(len(df_previsao)),
             "lat": round(lat, 6),
             "lon": round(lon, 6),
+            "filters_version": int(filters_version or 0),
         },
     )
 

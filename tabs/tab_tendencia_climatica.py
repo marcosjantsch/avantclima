@@ -10,6 +10,7 @@ def render_tab_tendencia_climatica(
     selected_municipio=None,
     selected_uf=None,
     logo_path=None,
+    filters_version: int = 0,
 ):
     st.markdown('<div class="section-title">Tendência Climática</div>', unsafe_allow_html=True)
 
@@ -19,7 +20,7 @@ def render_tab_tendencia_climatica(
             "empty_geometry",
             "Aba Tendencia Climatica sem geometria filtrada",
             {},
-            signature={"empty": True},
+            signature={"empty": True, "filters_version": int(filters_version or 0)},
         )
         st.warning("⚠️ Não há geometria filtrada para calcular o centróide.")
         return
@@ -31,7 +32,11 @@ def render_tab_tendencia_climatica(
             "invalid_geometry",
             "Nao foi possivel obter a geometria da area selecionada para tendencia climatica",
             {"records": int(len(gdf_filtered))},
-            signature={"records": int(len(gdf_filtered)), "invalid_geometry": True},
+            signature={
+                "records": int(len(gdf_filtered)),
+                "invalid_geometry": True,
+                "filters_version": int(filters_version or 0),
+            },
         )
         st.error("❌ Não foi possível obter a geometria da área selecionada.")
         return
@@ -104,6 +109,7 @@ não como previsão diária determinística.
             "lat": round(lat, 6),
             "lon": round(lon, 6),
             "titulo_local": titulo_local,
+            "filters_version": int(filters_version or 0),
         },
     )
 

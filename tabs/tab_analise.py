@@ -55,6 +55,7 @@ def render_tab_analise(
     selected_fazenda=None,
     start_date=None,
     end_date=None,
+    filters_version: int = 0,
 ):
     st.markdown('<div class="section-title">Análise Avançada</div>', unsafe_allow_html=True)
 
@@ -75,7 +76,7 @@ def render_tab_analise(
             "empty_dataset",
             "Aba Analise Avancada sem dados filtrados",
             {},
-            signature={"empty": True},
+            signature={"empty": True, "filters_version": int(filters_version or 0)},
         )
         st.error("❌ Sem dados filtrados para análise.")
         return
@@ -87,7 +88,10 @@ def render_tab_analise(
             "empty_after_normalization",
             "Normalizacao da analise avancada nao gerou dados validos",
             {"input_records": int(len(df_csv))},
-            signature={"input_records": int(len(df_csv))},
+            signature={
+                "input_records": int(len(df_csv)),
+                "filters_version": int(filters_version or 0),
+            },
         )
         st.error("❌ Não há dados válidos para análise após a normalização.")
         return
@@ -120,6 +124,7 @@ def render_tab_analise(
             "tipo_dado": tipo_dado or "",
             "periodo_inicio": str(start_date) if start_date is not None else "",
             "periodo_fim": str(end_date) if end_date is not None else "",
+            "filters_version": int(filters_version or 0),
         },
     )
     st.success(f"✅ Analisando {len(df)} registros válidos no período selecionado.")
