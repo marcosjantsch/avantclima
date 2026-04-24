@@ -10,6 +10,7 @@ import folium
 
 from shapely.geometry import mapping
 from streamlit_folium import st_folium
+from tabs.tab_mapa import _add_basemaps, _inject_map_theme
 
 
 MAP_HEIGHT = 680
@@ -138,6 +139,7 @@ def render_tab_imagens_tempo_real(
             f'mapa_imagens_tempo_real_'
             f'{camada_def["slug"]}_{status}_{resultado.get("data", "na")}_{FIXED_ZOOM}'
         ),
+        returned_objects=[],
     )
 
 
@@ -315,6 +317,7 @@ def _build_filter_key(
 def _criar_mapa_base(gdf: gpd.GeoDataFrame) -> folium.Map:
     geom_total = gdf.union_all() if hasattr(gdf, "union_all") else gdf.unary_union
     centroid = geom_total.centroid
+    minx, miny, maxx, maxy = gdf.total_bounds
 
     m = folium.Map(
         location=[centroid.y, centroid.x],
@@ -324,6 +327,14 @@ def _criar_mapa_base(gdf: gpd.GeoDataFrame) -> folium.Map:
         prefer_canvas=True,
         scrollWheelZoom=False,
     )
+
+    try:
+        m.fit_bounds([[miny, minx], [maxy, maxx]])
+    except Exception:
+        pass
+
+    _add_basemaps(m)
+    _inject_map_theme(m)
 
     return m
 
